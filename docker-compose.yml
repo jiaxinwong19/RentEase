@@ -270,6 +270,23 @@ services:
     networks:
       - kong-net
 
+  # Check Expiry Composite Microservice
+  check-expiry:
+    depends_on:
+      - order-records
+      - late-charge
+    build: ./backend/check_expiry_microservice
+    env_file:
+      - ./backend/check_expiry_microservice/.env
+    tty: true
+    restart: unless-stopped
+
+  # Late Charge Composite Microservice
+  late-charge:
+    build: ./backend/late_charge_microservice
+    env_file:
+      - ./backend/late_charge_microservice/.env
+      
 networks:
   kong-net:
     driver: bridge
