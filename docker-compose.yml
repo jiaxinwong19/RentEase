@@ -280,13 +280,17 @@ services:
       - ./backend/check_expiry_microservice/.env
     tty: true
     restart: unless-stopped
+    networks:
+      - backend-net
 
   # Late Charge Composite Microservice
   late-charge:
     build: ./backend/late_charge_microservice
     env_file:
       - ./backend/late_charge_microservice/.env
-      
+    networks:
+      - backend-net
+
 networks:
   kong-net:
     driver: bridge
