@@ -1,0 +1,13 @@
+
+services:
+  transaction-service:
+    build:
+      context: .
+    container_name: transaction-service
+    ports:
+      - "5003:5003"
+    volumes:
+      - .:/app
+    env_file:
+      - .env  # If you're using it for Stripe key
+    restart: always

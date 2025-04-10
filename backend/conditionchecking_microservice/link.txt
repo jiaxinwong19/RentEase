@@ -1,0 +1,6 @@
+for normal proj
+cd "C:\Users\zheng\Desktop\ZR Personal\SMU Slides\Y2S2 mods\IS213 ESD\Project\ESD-G4T6-main\ESD-G4T6-main\backend\conditionchecking_microservice"
+
+for github
+cd C:\Users\zheng\Documents\GitHub\ESD-G4T6\backend\conditionchecking_microservice"
+           

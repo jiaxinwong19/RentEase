@@ -1,0 +1,149 @@
+services:
+
+   #######################################################
+   # AMQP: RabbitMQ
+   #######################################################
+  rabbitmq:
+    image: "rabbitmq:3-management"
+    container_name: rabbitmq
+    ports:
+      - "5672:5672"   # RabbitMQ message broker
+      - "15672:15672" # RabbitMQ management UI
+   #######################################################
+   # Inventory: The inventory microservice
+   #######################################################
+  inventory_microservice:
+    build: ./inventory_microservice
+    restart: always
+    ports:
+      - "5020:5020"
+    environment:
+      - PYTHONUNBUFFERED=1
+      - GOOGLE_APPLICATION_CREDENTIALS=/app/serviceAccountKey.json
+    volumes:
+      - ./inventory_microservice/serviceAccountKey.json:/app/serviceAccountKey.json:ro
+    depends_on:
+      - rabbitmq
+
+   #######################################################
+   # Notification: The notification microservice
+   #######################################################
+  notification_microservice:
+    build: ./notification_microservice
+    ports:
+      - "5010:5010"
+    environment:
+      - PYTHONUNBUFFERED=1
+      - GOOGLE_APPLICATION_CREDENTIALS=/app/serviceAccountKey.json
+    volumes:
+      - ./notification_microservice/serviceAccountKey.json:/app/serviceAccountKey.json:ro
+    depends_on:
+      - rabbitmq
+    env_file:
+      - ./notification_microservice/.env
+ 
+   #######################################################
+   # Transaction: The transaction microservice
+   #######################################################
+  transaction_microservice:
+    build: ./transaction_microservice
+    ports:
+      - "5003:5003"
+    environment:
+      - PYTHONUNBUFFERED=1
+      - GOOGLE_APPLICATION_CREDENTIALS=/app/serviceAccountKey.json
+    volumes:
+      - ./transaction_microservice/serviceAccountKey.json:/app/serviceAccountKey.json:ro
+    env_file:
+      - ./transaction_microservice/.env
+
+
+      
+
+   #######################################################
+   # Order Records: The order records microservice
+   #######################################################
+  order_records_microservice:
+    build: ./order_records_microservice
+    env_file:
+      - .env
+    volumes:
+      - "${GOOGLE_APPLICATION_CREDENTIALS_HOST}:${GOOGLE_APPLICATION_CREDENTIALS}:ro"
+    tty: true
+    restart: unless-stopped
+
+
+  #  #######################################################
+  #  # Shipping: The shipping microservice
+  #  #######################################################
+  # shipping_microservice:
+  #   build: ./shipping_microservice
+  #   ports:
+  #     - "5009:5009"
+  #   environment:
+  #     PYTHONUNBUFFERED: 1
+     #######################################################
+   # Shipping: The shipping microservice
+   #######################################################
+  conditionchecking_microservice:
+    build: ./conditionchecking_microservice
+    ports:
+      - "5005:5005"
+    environment:
+      - PYTHONUNBUFFERED=1
+      - GOOGLE_APPLICATION_CREDENTIALS=/app/serviceAccountKey.json
+    volumes:
+      - ./conditionchecking_microservice/serviceAccountKey.json:/app/serviceAccountKey.json:ro
+ 
+   #######################################################
+   # Order Composite: The order composite microservice
+   #######################################################
+  # order_composite_microservice:
+  #   build: ./order_composite
+  #   ports:
+  #     - "5001:5001"
+  #   environment:
+  #     PYTHONUNBUFFERED: 1
+  #   depends_on:
+  #     - order_records_microservice
+  #     - transaction_microservice
+  #     - shipping_microservice
+  #     - notification_microservice
+
+   #######################################################
+   # Report Damage: Manages timeslot and appointment microservice
+   #######################################################
+  report_damage_composite_microservice:
+    build:
+      context: ./report_damage_composite_microservice
+    restart: always
+    ports:
+      - "5004:5004"
+    depends_on:
+      - inventory_microservice
+      - transaction_microservice
+      - notification_microservice
+      - conditionchecking_microservice
+    environment:
+      PYTHONUNBUFFERED: 1
+
+   #######################################################
+   # Late Charge: Calculates late charge amount
+   #######################################################
+  late_charge_microservice:
+    build: ./late_charge_microservice
+    env_file:
+      - ./late_charge_microservice/.env
+
+   #######################################################
+   # Check Expiry: Checks for and handles expired orders
+   #######################################################
+  check_expiry_microservice:
+    depends_on:
+      - order_records_microservice
+      - late_charge_microservice
+    build: ./check_expiry_microservice
+    env_file:
+      - ./check_expiry_microservice/.env
+    tty: true
+    restart: unless-stopped

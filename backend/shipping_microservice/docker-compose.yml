@@ -1,0 +1,13 @@
+version: '3'
+
+services:
+  shipping-service:
+    build: .
+    ports:
+      - "5000:5000"
+    environment:
+      - SHIPPO_API_KEY=${SHIPPO_API_KEY}
+      - CARRIER_ACCOUNT=${CARRIER_ACCOUNT}
+      - FIREBASE_CREDENTIALS=/app/serviceAccountKey.json
+    volumes:
+      - ./serviceAccountKey.json:/app/serviceAccountKey.json

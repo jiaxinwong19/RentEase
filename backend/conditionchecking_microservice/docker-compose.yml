@@ -1,0 +1,30 @@
+version: '3'
+services:
+  condition-check:
+    build: .
+    container_name: condition-check
+    ports:
+      - "5000:5000"
+    environment:
+      - GOOGLE_APPLICATION_CREDENTIALS=/app/serviceAccountKeyFirebase.json
+      - INVENTORY_SERVICE_URL=http://inventory-service:5001
+
+      # If you want to pass a placeholder for Inventory (optional):
+      - INVENTORY_SERVICE_URL=http://inventory-service:5001
+    volumes:
+      # Mount your Firebase service account key into the container
+      - ./serviceAccountKeyFirebase.json:/app/serviceAccountKeyFirebase.json
+
+
+    # Commented out since you're not running Inventory now:
+    # depends_on:
+    #   - inventory-service
+
+# If/when you want to include Inventory again:
+# inventory-service:
+#   build: ../inventory_microservice
+#   container_name: inventory-service
+#   ports:
+#     - "5001:5001"
+#   environment:
+#     - FLASK_ENV=production

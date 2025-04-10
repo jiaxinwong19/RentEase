@@ -1,0 +1,281 @@
+version: '3.8'
+
+services:
+  # Kong Database
+  kong-database:
+    image: postgres:13
+    container_name: kong-database
+    environment:
+      POSTGRES_USER: kong
+      POSTGRES_DB: kong
+      POSTGRES_PASSWORD: kongpass
+    volumes:
+      - kong_data:/var/lib/postgresql/data
+    ports:
+      - "55432:5432"
+    networks:
+      - kong-net
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "kong"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Kong Migration - runs once to set up the database
+  kong-migration:
+    image: kong:latest
+    container_name: kong-migration
+    depends_on:
+      kong-database:
+        condition: service_healthy
+    environment:
+      KONG_DATABASE: postgres
+      KONG_PG_HOST: kong-database
+      KONG_PG_USER: kong
+      KONG_PG_PASSWORD: kongpass
+    command: kong migrations bootstrap
+    networks:
+      - kong-net
+
+  # Kong Gateway
+  kong:
+    image: kong:latest
+    container_name: kong-gateway
+    depends_on:
+      kong-database:
+        condition: service_healthy
+      kong-migration:
+        condition: service_completed_successfully
+    environment:
+      KONG_DATABASE: postgres
+      KONG_PG_HOST: kong-database
+      KONG_PG_USER: kong
+      KONG_PG_PASSWORD: kongpass
+      KONG_PROXY_ACCESS_LOG: /dev/stdout
+      KONG_ADMIN_ACCESS_LOG: /dev/stdout
+      KONG_PROXY_ERROR_LOG: /dev/stderr
+      KONG_ADMIN_ERROR_LOG: /dev/stderr
+      KONG_ADMIN_LISTEN: 0.0.0.0:8001
+      KONG_ADMIN_GUI_URL: http://localhost:18002
+      KONG_ADMIN_API_URI: http://localhost:18001
+      KONG_ADMIN_GUI_API_URL: http://localhost:18001
+    ports:
+      - "18000:8000"  # Proxy
+      - "8443:8443"  # Proxy SSL
+      - "18001:8001"  # Admin API
+      - "8444:8444"  # Admin API SSL
+      - "18002:8002"  # Admin GUI
+    networks:
+      - kong-net
+      - backend-net
+
+  # RabbitMQ Service
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: rabbitmq
+    hostname: rabbitmq
+    ports:
+      - "5673:5672"   # AMQP protocol port
+      - "15673:15672" # Management UI
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    networks:
+      - backend-net
+  app:
+    build:
+      context: ./backend/rabbitmq_setup  # Folder containing Dockerfile and script
+    container_name: rabbitmq-setup
+    depends_on:
+      - rabbitmq
+    networks:
+      - backend-net
+    environment:
+      - RABBITMQ_HOST=rabbitmq
+      - EXCHANGE_NAME=order_exchange  # Better to make this configurable
+    restart: "no"  # Only run once, then stop
+  # Order Composite Microservice
+  order-composite:
+    build:
+      context: ./backend/order_composite
+    container_name: order-composite
+    environment:
+      - ORDER_RECORDS_URL=${ORDER_RECORDS_URL:-http://order-records:5000/orders}
+      - ORDER_RECORDS_URL_GRAPHQL=${ORDER_RECORDS_URL_GRAPHQL:-http://order-records:5000/graphql}
+      - PRODUCT_DETAILS_URL=${PRODUCT_DETAILS_URL:-http://inventory:5020/inventory/products/}
+      - NOTIFICATION_URL=${NOTIFICATION_URL:-http://notification:5010/notification/renter/notify}
+      - USER_EMAIL_URL=${USER_EMAIL_URL:-https://personal-s5llcxwn.outsystemscloud.com/userMS/rest/user/getEmail/}
+      - USER_INFO_URL=${USER_INFO_URL:-https://personal-s5llcxwn.outsystemscloud.com/userMS/rest/user/getUserInfo}
+      - STRIPE_CUSTOMER_URL=${STRIPE_CUSTOMER_URL:-https://personal-s5llcxwn.outsystemscloud.com/userMS/rest/user/getStripeCusID/}
+      - TRANSACTION_SERVICE_URL=${TRANSACTION_SERVICE_URL:-http://transaction:5003}
+      - SHIPPING_SERVICE_URL=${SHIPPING_SERVICE_URL:-http://shipping:5009}
+      - RABBITMQ_HOST=${RABBITMQ_HOST:-rabbitmq}
+      - EXCHANGE_NAME=${EXCHANGE_NAME:-order_exchange}
+    ports:
+      - "5001:5001"
+    depends_on:
+      - rabbitmq
+      - inventory
+      - notification
+      - order-records
+      - transaction
+      - shipping
+    networks:
+      - backend-net
+
+  # Condition Check Microservice
+  condition-check:
+    build:
+      context: ./backend/conditionchecking_microservice
+    container_name: condition-check
+    ports:
+      - "5005:5005"
+    environment:
+      - GOOGLE_APPLICATION_CREDENTIALS=/app/serviceAccountKey.json
+    volumes:
+      - ./backend/conditionchecking_microservice/serviceAccountKey.json:/app/serviceAccountKey.json:ro
+    networks:
+      - backend-net
+
+  # Inventory Microservice
+  inventory:
+    build:
+      context: ./backend/inventory_microservice
+    container_name: inventory
+    ports:
+      - "5020:5020"
+    environment:
+      - GOOGLE_APPLICATION_CREDENTIALS=/app/serviceAccountKey.json
+      - RABBITMQ_HOST=${RABBITMQ_HOST:-rabbitmq}
+    volumes:
+      - ./backend/inventory_microservice/serviceAccountKey.json:/app/serviceAccountKey.json:ro
+    depends_on:
+      - rabbitmq
+    networks:
+      - backend-net
+
+  # Notification Microservice
+  notification:
+    build:
+      context: ./backend/notification_microservice
+    container_name: notification
+    ports:
+      - "5010:5010"
+    environment:
+      - RABBITMQ_HOST=${RABBITMQ_HOST:-rabbitmq}
+    env_file:
+      - ./backend/notification_microservice/.env
+    depends_on:
+      - rabbitmq
+    networks:
+      - backend-net
+
+  # Order Records Microservice
+  order-records:
+    build:
+      context: ./backend/order_records_microservice
+    container_name: order-records
+    ports:
+      - "5000:5000"
+    environment:
+      - GOOGLE_APPLICATION_CREDENTIALS=/app/credentials.json
+      - FIRESTORE_COLLECTION=orderRecords
+    volumes:
+      - ./backend/order_records_microservice/credentials.json:/app/credentials.json:ro
+    networks:
+      - backend-net
+
+  # Transaction Microservice
+  transaction:
+    build:
+      context: ./backend/transaction_microservice
+    container_name: transaction
+    ports:
+      - "5003:5003"
+    volumes:
+      - ./backend/transaction_microservice/serviceAccountKey.json:/app/serviceAccountKey.json:ro
+    env_file:
+      - ./backend/transaction_microservice/.env
+    networks:
+      - backend-net
+
+
+# Shipping Microservice
+  shipping:
+    build:
+      context: ./backend/shipping_microservice
+    container_name: shipping
+    ports:
+      - "5009:5009"
+    env_file:
+    - ./backend/shipping_microservice/.env
+    environment:
+      - RABBITMQ_HOST=rabbitmq
+      - FIREBASE_CREDENTIALS=/app/serviceAccountKey.json
+    volumes:
+      - ./backend/shipping_microservice/serviceAccountKey.json:/app/serviceAccountKey.json:ro
+    depends_on:
+      - rabbitmq
+    # Add a health check and restart policy
+    restart: always
+    # Use a startup script to wait for RabbitMQ
+    command: >
+      /bin/bash -c "
+        # Wait for RabbitMQ to be ready
+        echo 'Waiting for RabbitMQ to be ready...'
+        until nc -z rabbitmq 5672; do
+          echo 'RabbitMQ not ready yet - sleeping'
+          sleep 3
+        done
+        echo 'RabbitMQ is up - starting shipping service'
+        # Start the application
+        python -u shipping_service.py
+      "
+    networks:
+      - backend-net  
+
+  # Report Damage Composite Microservice
+  report-damage:
+    build:
+      context: ./backend/report_damage_composite_microservice
+    container_name: report-damage
+    ports:
+      - "5004:5004"
+    environment:
+      - INVENTORY_SERVICE_URL=${INVENTORY_SERVICE_URL:-http://inventory:5020}
+      - NOTIFICATION_SERVICE_URL=${NOTIFICATION_SERVICE_URL:-http://notification:5010}
+      - TRANSACTION_SERVICE_URL=${TRANSACTION_SERVICE_URL:-http://transaction:5003}
+      - CONDITION_SERVICE_URL=${CONDITION_SERVICE_URL:-http://condition-check:5005}
+      - USER_SERVICE_URL=${USER_SERVICE_URL:-https://personal-s5llcxwn.outsystemscloud.com/userMS/rest/user}
+      # - IMGUR_CLIENT_ID=${IMGUR_CLIENT_ID}
+    depends_on:
+      - inventory
+      - notification
+      - transaction
+      - condition-check
+    networks:
+      - backend-net
+
+  # Frontend
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: frontend
+    ports:
+      - "80:80"
+    env_file:
+      - ./frontend/.env
+    depends_on:
+      - kong
+    networks:
+      - kong-net
+
+networks:
+  kong-net:
+    driver: bridge
+  backend-net:
+    driver: bridge
+
+volumes:
+  kong_data:
+  rabbitmq_data:

@@ -1,0 +1,18 @@
+version: "3.8"
+
+services:
+  inventory-app:
+    build: .
+    ports:
+      - "5020:5020"
+    volumes:
+      - .:/app
+    environment:
+      - GOOGLE_APPLICATION_CREDENTIALS=/app/serviceAccountKey.json
+    depends_on:
+      - firestore
+
+  firestore:
+    image: mtlynch/firestore-emulator
+    ports:
+      - "8080:8080"

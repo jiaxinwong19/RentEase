@@ -1,0 +1,6 @@
+flask
+python-dotenv
+google-cloud-firestore
+gunicorn
+graphene
+Flask-GraphQL==2.0.1

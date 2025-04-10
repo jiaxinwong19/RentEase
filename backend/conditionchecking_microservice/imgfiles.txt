@@ -1,0 +1,13 @@
+normal blue vase: "https://i.ibb.co/1Y6KFLfj/normal-blue-vase.png"
+stained blue vase: "https://i.ibb.co/HfY2zLYD/stained-blue-vase.png"
+Similarity score: 0.9644133051108384
+
+normal orange vase: "https://i.ibb.co/Kcq7TkV1/normal-orange-vase.png"
+damaged orange vase: "https://i.ibb.co/5grcw31F/damaged-orange-vase.png"
+Similarity score: 0.8207676213967894
+is_same: True
+
+normal gold vase: "https://i.ibb.co/bj4t24RL/normal-gold-vase.png"
+broken gold vase: "https://i.ibb.co/QFjYks0p/broken-gold-vase.png"
+Similarity score: 0.4579110775122437
+is_same: False
