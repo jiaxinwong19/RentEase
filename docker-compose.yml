@@ -272,9 +272,9 @@ services:
 
   # Check Expiry Composite Microservice
   check-expiry:
-    # depends_on:
-    #   - order-records
-    #   - late-charge
+    depends_on:
+      - order-records
+      - late-charge
     build: ./backend/check_expiry_microservice
     env_file:
       - ./backend/check_expiry_microservice/.env
@@ -288,8 +288,6 @@ services:
     build: ./backend/late_charge_microservice
     env_file:
       - ./backend/late_charge_microservice/.env
-    ports:
-      - "5007:5007"
     networks:
       - backend-net
 
