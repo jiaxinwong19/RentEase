@@ -85,7 +85,7 @@ def send_to_notification(order, late_charge):
     Payload:
       {
         "userEmail": <retrieved email>,
-        "status": <order status>,  ("late" if overdue14 is false, "closed" if true),
+        "status": <order status>,  ("late" if overdue14 is false, "completed" if true),
         "amount": <lateCharge from Late Charge response>,
         "orderID": <orderID>,
         "productID": <productID>
@@ -116,7 +116,7 @@ def fetch_and_update_orders():
     For each order:
       - Checks if the order is >14 days overdue.
       - Updates the order's status:
-           * Sets to "closed" if >14 days overdue.
+           * Sets to "completed" if >14 days overdue.
            * Sets to "late" if not >14 days overdue and current status is not "late".
       - Updates the user score.
       - Adds a Boolean field 'overdue14' to the order payload.
@@ -154,9 +154,9 @@ def fetch_and_update_orders():
             is_overdue_14 = now > overdue_threshold
 
             if is_overdue_14:
-                if current_status != "closed":
-                    update_order_status(order_id, "closed")
-                    order["status"] = "closed"
+                if current_status != "completed":
+                    update_order_status(order_id, "completed")
+                    order["status"] = "completed"
             else:
                 if current_status != "late":
                     update_order_status(order_id, "late")
