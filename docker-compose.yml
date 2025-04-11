@@ -289,7 +289,7 @@ services:
     env_file:
       - ./backend/late_charge_microservice/.env
     ports:
-      - "5001:5001"
+      - "5007:5007"
     networks:
       - backend-net
 
