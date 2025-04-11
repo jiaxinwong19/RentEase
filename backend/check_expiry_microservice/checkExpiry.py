@@ -94,7 +94,7 @@ def send_to_notification(order, late_charge):
 
     status = order.get("status")
     if status == "completed" and order.get("overdue14"):
-        status = "refund"
+        status = "late"
 
     payload = {
         "userEmail": user_email,
