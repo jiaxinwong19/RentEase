@@ -82,14 +82,8 @@ def get_user_email(user_id):
 def send_to_notification(order, late_charge):
     """
     Sends notification to the Notification service.
-    Payload:
-      {
-        "userEmail": <retrieved email>,
-        "status": <order status>,  ("late" if overdue14 is false, "completed" if true),
-        "amount": <lateCharge from Late Charge response>,
-        "orderID": <orderID>,
-        "productID": <productID>
-      }
+    If an order is overdue for more than 14 days (marked "completed" in the system),
+    the status is converted to "refund" in the notification payload.
     """
     if not NOTIFICATION_SERVICE_URL:
         return
@@ -98,9 +92,13 @@ def send_to_notification(order, late_charge):
     if not user_email:
         return
 
+    status = order.get("status")
+    if status == "completed" and order.get("overdue14"):
+        status = "refund"
+
     payload = {
         "userEmail": user_email,
-        "status": order.get("status"),
+        "status": status,
         "amount": late_charge,
         "orderID": order.get("orderID"),
         "productID": order.get("productID")
